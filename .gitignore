@@ -1,0 +1,25 @@
+.idea
+/logs
+/data
+.env
+/.project
+.docker-sync
+
+/nginx/ssl/*.crt
+/nginx/ssl/*.key
+/nginx/ssl/*.csr
+
+.DS_Store
+
+# ignore .docker
+.docker
+
+# ignore wwwroot
+wwwroot
+
+# ignore wwwlogs
+wwwlogs
+
+# ignore php-fpm
+php-fpm
+

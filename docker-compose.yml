@@ -1,0 +1,129 @@
+version: "3.7"
+services:
+  # Consul
+  consul:
+    image: consul:latest
+    container_name: consul
+    restart: on-failure
+    # We can append -datacenter=dc1 to set datacenter in command
+    command: agent -server -bootstrap-expect=1 -node=consul-server -bind=0.0.0.0 -client=0.0.0.0 -ui
+    environment: 
+      - "CONSUL_LOCAL_CONFIG={\"disable_update_check\": true}"
+    volumes:
+      - ./.docker/consul/node:/consul/data
+    networks:
+      - starrycloudnetwork
+    ports: 
+      - 8500:8500
+  # MySQL
+  mysql:
+    image: mysql:${PL_MYSQL_VERSION}
+    container_name: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    volumes:
+      - ./.docker/mysql/system:/var/lib/mysql
+      - ./.docker/mysql/root:/root
+      - ./.docker/mysql/log:/var/log/mysql
+      - ./config/mysql/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: ${PL_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${PL_MYSQL_DATABASE}
+      MYSQL_USER: ${PL_MYSQL_USER}
+      MYSQL_PASSWORD: ${PL_MYSQL_PASSWORD}
+    networks:
+      - starrycloudnetwork
+    ports:
+      - 3306:3306
+  # Redis
+  redis:
+    image: redis:latest
+    container_name: redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes: 
+      - ./.docker/redis:/data
+      - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - starrycloudnetwork
+    ports:
+      - 6379:6379
+  # Nginx
+  nginx:
+    build: 
+      context: ./config/nginx
+      args:
+        - CHANGE_SOURCE=${PL_NGINX_CHANGE_SOURCE}
+        - http_proxy
+        - https_proxy
+        - no_proxy
+    container_name: nginx
+    image: nginx:latest
+    restart: unless-stopped
+    ports: 
+      - 80:80
+      - 443:443
+    volumes: 
+      - ./wwwroot:/var/www
+      - ./wwwlogs:/var/log/nginx
+      - ./config/nginx/sites:/etc/nginx/sites-available
+      - ./config/nginx/ssl:/etc/nginx/ssl
+    environment: 
+      - TZ=Asia/Shanghai
+    networks: 
+      starrycloudnetwork: 
+  # Nacos
+  nacos:
+    image: nacos/nacos-server:latest
+    container_name: nacos-standalone
+    environment:
+      - PREFER_HOST_MODE=hostname
+      - MODE=standalone
+    volumes:
+      - ./.docker/nacos/standalone-logs/:/home/nacos/logs
+      - ./config/nacos/init.d/custom.properties:/home/nacos/init.d/custom.properties
+    networks: 
+      - starrycloudnetwork
+    ports:
+      - 8848:8848
+  # Prometheus
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    volumes:
+      - ./config/nacos/prometheus/prometheus-standalone.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+    depends_on:
+      - nacos
+    networks:
+      - starrycloudnetwork
+    restart: on-failure
+  # Grafana
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    networks:
+      - starrycloudnetwork
+    ports:
+      - 3000:3000
+    restart: on-failure
+  rabbitmq:
+    image: rabbitmq:alpine
+    container_name: rabbitmq
+    privileged: true
+    volumes:
+      - ./.docker/rabbitmq/data:/var/lib/rabbitmq
+      - ./.docker/rabbitmq/logs:/var/log/rabbitmq
+      - ./config/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${PL_RABBITMQ_ERLANG_COOKIE}
+      RABBITMQ_DEFAULT_USER: ${PL_RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${PL_RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_DEFAULT_VHOST: ${PL_RABBITMQ_DEFAULT_VHOST}
+    networks:
+      - starrycloudnetwork
+    ports:
+      - 5672:5672
+      - 15672:15672
+networks:
+  starrycloudnetwork: 
