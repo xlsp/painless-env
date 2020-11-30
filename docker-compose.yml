@@ -71,13 +71,40 @@ services:
       - TZ=Asia/Shanghai
     networks: 
       starrycloudnetwork: 
+  
+  # MySQL for nacos
+  nacos-mysql:
+    image: nacos/nacos-mysql:8.0.16
+    container_name: nacos-mysql
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    volumes:
+      - ./.docker/mysql-nacos/system:/var/lib/mysql
+      - ./.docker/mysql-nacos/root:/root
+      - ./.docker/mysql-nacos/log:/var/log/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: nacos_dev
+      MYSQL_USER: default
+      MYSQL_PASSWORD: secret
+    networks:
+      - starrycloudnetwork
+    ports:
+      # host: docker
+      - 3307:3306
   # Nacos
   nacos:
-    image: nacos/nacos-server:latest
-    container_name: nacos-standalone
+    image: nacos/nacos-server:1.3.1
+    container_name: nacos-standalone-mysql
     environment:
-      - PREFER_HOST_MODE=hostname
-      - MODE=standalone
+      PREFER_HOST_MODE: hostname
+      MODE: standalone
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: nacos-mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos_dev
+      MYSQL_SERVICE_USER: default
+      MYSQL_SERVICE_PASSWORD: secret
     volumes:
       - ./.docker/nacos/standalone-logs/:/home/nacos/logs
       - ./config/nacos/init.d/custom.properties:/home/nacos/init.d/custom.properties
@@ -85,6 +112,9 @@ services:
       - starrycloudnetwork
     ports:
       - 8848:8848
+      - 9555:9555
+    depends_on:
+      - nacos-mysql
   # Prometheus
   prometheus:
     container_name: prometheus
